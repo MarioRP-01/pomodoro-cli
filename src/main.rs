@@ -35,7 +35,7 @@ impl Time {
     }
 }
 
-async fn timer_loop() {
+async fn clock_loop() {
     let mut clock: Time = Time::new();
     loop {
         println!("{:?}", clock);
@@ -45,7 +45,7 @@ async fn timer_loop() {
 }
 
 fn main() {
-    task::spawn(timer_loop());
+    task::spawn(clock_loop());
     thread::sleep(Duration::from_secs(5));
 }
 
