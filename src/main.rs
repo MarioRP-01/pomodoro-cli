@@ -1,6 +1,9 @@
 use std::thread;
 use std::time::Duration;
 
+use async_std::task;
+use async_std::task::sleep;
+
 #[derive(Debug)]
 struct Time {
     hours: u8,
@@ -32,13 +35,18 @@ impl Time {
     }
 }
 
-fn main() {
+async fn timer_loop() {
     let mut clock: Time = Time::new();
     loop {
         println!("{:?}", clock);
-        thread::sleep(Duration::from_secs(1));
+        sleep(Duration::from_secs(1)).await;
         clock.increment_second()
     }
+}
+
+fn main() {
+    task::spawn(timer_loop());
+    thread::sleep(Duration::from_secs(5));
 }
 
 #[cfg(test)]
