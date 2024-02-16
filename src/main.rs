@@ -1,4 +1,4 @@
-use std::thread;
+use std::io;
 use std::time::Duration;
 
 use async_std::task;
@@ -45,8 +45,21 @@ async fn clock_loop() {
 }
 
 fn main() {
+    let mut _action: String;
+
     task::spawn(clock_loop());
-    thread::sleep(Duration::from_secs(5));
+    loop {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        match input.trim() {
+            "exit" => break,
+            "stop" => {
+                println!("Clock stopped");
+                break;
+            }
+            _ => println!("Unknown command. Type 'exit' to quite")
+        }
+    }
 }
 
 #[cfg(test)]
