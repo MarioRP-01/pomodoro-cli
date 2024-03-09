@@ -1,8 +1,13 @@
 use std::io;
+use std::io::{StdoutLock, Write};
 use std::time::Duration;
 
+use async_std::sync::channel;
 use async_std::task;
 use async_std::task::sleep;
+use termion::{async_stdin, terminal_size};
+use termion::input::TermRead;
+use termion::raw::{IntoRawMode, RawTerminal};
 
 #[derive(Debug)]
 struct Time {
@@ -45,21 +50,41 @@ async fn clock_loop() {
 }
 
 fn main() {
-    let mut _action: String;
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock().into_raw_mode().unwrap();
+    let mut stdin = async_stdin().keys();
+
+    term_init(&mut stdout);
 
     task::spawn(clock_loop());
+
+    let ()
+
     loop {
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        match input.trim() {
-            "exit" => break,
-            "stop" => {
-                println!("Clock stopped");
-                break;
-            }
-            _ => println!("Unknown command. Type 'exit' to quite")
+        let b = stdin.next();
+        match b {
+            Some(Ok(key)) => {
+                match key {
+                    termion::event::Key::Char('q') => break,
+                    _ => {
+                        let (_, height) = terminal_size().unwrap();
+                        write!(stdout, "{}{}", termion::cursor::Goto(1, height), "Invalid command. Press 'q' to exit.").unwrap();
+                        stdout.flush().unwrap();
+                    }
+                }
+            },
+            _ => {}
         }
     }
+}
+
+fn term_init(stdout: &mut RawTerminal<StdoutLock>) {
+    let (_, height) = terminal_size().unwrap();
+    write!(stdout, "{}{}",
+        termion::clear::All,
+        termion::cursor::Goto(1, height)
+    ).unwrap();
+    stdout.flush().unwrap();
 }
 
 #[cfg(test)]
