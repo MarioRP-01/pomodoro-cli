@@ -1,8 +1,9 @@
+use std::fmt;
 use std::io::Write;
 use std::time::Duration;
 
 use async_std::task;
-use async_std::task::sleep;
+use crossterm::{Command, ExecutableCommand, QueueableCommand};
 
 #[derive(Debug)]
 struct Time {
@@ -35,17 +36,43 @@ impl Time {
     }
 }
 
-async fn clock_loop() {
-    let mut clock: Time = Time::new();
-    loop {
-        println!("{:?}", clock);
-        sleep(Duration::from_secs(1)).await;
-        clock.increment_second()
+impl fmt::Display for Time {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:02}:{:02}:{:02}",
+            self.hours, self.minutes, self.seconds
+        )
     }
 }
 
-fn main() {
-    task::spawn(clock_loop());
+async fn clock_loop(tx: std::sync::mpsc::Sender<()>) {
+    loop {
+        task::sleep(Duration::from_secs(1)).await;
+        tx.send(()).unwrap();
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut stdout = std::io::stdout();
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let mut time = Time::new();
+
+    stdout.execute(crossterm::terminal::Clear(
+        crossterm::terminal::ClearType::All,
+    ))?;
+
+    task::spawn(clock_loop(tx));
+
+    loop {
+        stdout
+            .queue(crossterm::cursor::MoveTo(0, 0))?
+            .queue(crossterm::style::Print(&time))?
+            .flush()?;
+        rx.recv().unwrap();
+        time.increment_second();
+    }
 }
 
 #[cfg(test)]
