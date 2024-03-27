@@ -67,8 +67,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         stdout
-            .queue(crossterm::cursor::MoveTo(0, 0))?
+            .queue(crossterm::cursor::MoveTo(2, 0))?
             .queue(crossterm::style::Print(&time))?
+            .queue(crossterm::cursor::MoveTo(0, 2))?
+            .queue(crossterm::style::Print("\u{2192} (s) stop"))?
+            .queue(crossterm::cursor::MoveTo(0, 3))?
+            .queue(crossterm::style::Print("\u{2192} (r) reset"))?
+            .queue(crossterm::cursor::MoveTo(0, 4))?
+            .queue(crossterm::style::Print("\u{2192} (q) quit"))?
             .flush()?;
         rx.recv().unwrap();
         time.increment_second();
