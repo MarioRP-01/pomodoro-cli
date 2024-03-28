@@ -2,8 +2,10 @@ use std::fmt;
 use std::io::Write;
 use std::time::Duration;
 
+use async_std::io::ReadExt;
 use async_std::task;
-use crossterm::{Command, ExecutableCommand, QueueableCommand};
+use crossterm::{ExecutableCommand, QueueableCommand};
+use crossterm::event::{self, Event, KeyCode, KeyEvent};
 
 #[derive(Debug)]
 struct Time {
@@ -46,10 +48,28 @@ impl fmt::Display for Time {
     }
 }
 
-async fn clock_loop(tx: std::sync::mpsc::Sender<()>) {
+enum PomodoroCommand {
+    ClockIncrement,
+    KeyboardInput(char)
+}
+
+async fn clock_loop(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
     loop {
         task::sleep(Duration::from_secs(1)).await;
-        tx.send(()).unwrap();
+        tx.send(PomodoroCommand::ClockIncrement).unwrap();
+    }
+}
+
+async fn handle_input(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
+    loop {
+        if let Ok(event) = event::read() {
+            match event {
+                Event::Key(KeyEvent { code: KeyCode::Char(c), .. }) => {
+                    tx.send(PomodoroCommand::KeyboardInput(c)).unwrap();
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -63,7 +83,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         crossterm::terminal::ClearType::All,
     ))?;
 
-    task::spawn(clock_loop(tx));
+    task::spawn(clock_loop(tx.clone()));
+    task::spawn(handle_input(tx));
 
     loop {
         stdout
@@ -76,8 +97,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .queue(crossterm::cursor::MoveTo(0, 4))?
             .queue(crossterm::style::Print("\u{2192} (q) quit"))?
             .flush()?;
-        rx.recv().unwrap();
-        time.increment_second();
+        match rx.recv().unwrap() {
+            PomodoroCommand::KeyboardInput(c) => {
+                match c {
+                    's' => {},
+                    'r' => time = Time::new(),
+                    'q' => std::process::exit(0),
+                    _ => {}
+                }
+            }
+            PomodoroCommand::ClockIncrement => time.increment_second(),
+        }
     }
 }
 
