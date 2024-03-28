@@ -48,6 +48,9 @@ async fn handle_input(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = std::io::stdout();
+
+    stdout.execute(crossterm::cursor::Hide)?;
+
     let (command_tx, command_rx) = std::sync::mpsc::channel();
     let (stop_clock_tx, stop_clock_rx) = async_std::channel::bounded(1);
     let (resume_clock_tx, resume_clock_rx) = std::sync::mpsc::channel();
