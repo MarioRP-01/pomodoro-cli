@@ -41,11 +41,6 @@ impl fmt::Display for Time {
     }
 }
 
-pub(crate) enum PomodoroCommand {
-    ClockIncrement,
-    KeyboardInput(char)
-}
-
 #[cfg(test)]
 mod test {
     use super::*;

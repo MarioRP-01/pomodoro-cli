@@ -1,12 +1,13 @@
 mod pomodoro;
+mod command;
 
-use std::fmt;
 use std::io::Write;
 use std::time::Duration;
 use async_std::task;
 use crossterm::{event, ExecutableCommand, QueueableCommand};
 use crossterm::event::{Event, KeyCode, KeyEvent};
-use crate::pomodoro::{PomodoroCommand, Time};
+use command::PomodoroCommand;
+use pomodoro::Time;
 
 
 async fn clock_loop(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
