@@ -1,5 +1,5 @@
 [package]
-name = "pomodoro-cli"
+name = "pomodoro-term"
 version = "0.1.0"
 edition = "2021"
 
