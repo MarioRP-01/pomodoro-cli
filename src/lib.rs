@@ -35,13 +35,11 @@ async fn clock_loop(
 
 async fn handle_input(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
     loop {
-        if let Ok(event) = event::read() {
-            match event {
-                Event::Key(KeyEvent { code: KeyCode::Char(c), .. }) => {
-                    tx.send(PomodoroCommand::KeyboardInput(c)).unwrap();
-                }
-                _ => {}
+        match event::read() {
+            Ok(Event::Key(KeyEvent { code: KeyCode::Char(c), .. })) => {
+                tx.send(PomodoroCommand::KeyboardInput(c)).unwrap();
             }
+            _ => {}
         }
     }
 }
