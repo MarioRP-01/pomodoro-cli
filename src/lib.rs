@@ -7,12 +7,12 @@ use crossterm::{event, ExecutableCommand, QueueableCommand};
 use futures::FutureExt;
 
 use command::PomodoroCommand;
-use pomodoro::Time;
+use pomodoro::Clock;
 
 mod command;
 mod pomodoro;
 
-async fn clock_loop(
+async fn clock_tick_loop(
     command_tx: std::sync::mpsc::Sender<PomodoroCommand>,
     clock_stop_rx: async_std::channel::Receiver<()>,
     clock_resume_rx: std::sync::mpsc::Receiver<()>,
@@ -56,13 +56,13 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (stop_clock_tx, stop_clock_rx) = async_std::channel::bounded(1);
     let (resume_clock_tx, resume_clock_rx) = std::sync::mpsc::channel();
 
-    let mut time = Time::build(0, 1, 0);
+    let mut clock = Clock::build(0, 1, 0);
 
     stdout.execute(crossterm::terminal::Clear(
         crossterm::terminal::ClearType::All,
     ))?;
 
-    task::spawn(clock_loop(
+    task::spawn(clock_tick_loop(
         command_tx.clone(),
         stop_clock_rx,
         resume_clock_rx,
@@ -72,7 +72,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         stdout
             .queue(crossterm::cursor::MoveTo(2, 0))?
-            .queue(crossterm::style::Print(&time))?
+            .queue(crossterm::style::Print(&clock))?
             .queue(crossterm::cursor::MoveTo(0, 2))?
             .queue(crossterm::style::Print("\u{2192} (s) stop"))?
             .queue(crossterm::cursor::MoveTo(0, 3))?
@@ -86,11 +86,11 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             PomodoroCommand::KeyboardInput(c) => match c {
                 's' => stop_clock_tx.try_send(()).unwrap(),
                 'c' => resume_clock_tx.send(()).unwrap(),
-                'r' => time = Time::build(0, 1, 0),
+                'r' => clock = Clock::build(0, 1, 0),
                 'q' => std::process::exit(0),
                 _ => {}
             },
-            PomodoroCommand::ClockTick => match time.decrement_second() {
+            PomodoroCommand::ClockTick => match clock.decrement_second() {
                 Ok(_) => {}
                 Err(_) => stop_clock_tx.try_send(()).unwrap(),
             },
