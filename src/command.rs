@@ -1,4 +1,4 @@
 pub(crate) enum PomodoroCommand {
-    ClockIncrement,
+    ClockTick,
     KeyboardInput(char)
 }

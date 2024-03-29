@@ -25,7 +25,7 @@ async fn clock_loop(
             futures::pin_mut!(sleep_future, stop_future);
 
             futures::select! {
-            _ = sleep_future => command_tx.send(PomodoroCommand::ClockIncrement).unwrap(),
+            _ = sleep_future => command_tx.send(PomodoroCommand::ClockTick).unwrap(),
             _ = stop_future => break,
             }
         }
@@ -53,7 +53,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (stop_clock_tx, stop_clock_rx) = async_std::channel::bounded(1);
     let (resume_clock_tx, resume_clock_rx) = std::sync::mpsc::channel();
 
-    let mut time = Time::build(0, 0, 0);
+    let mut time = Time::build(0, 1, 0);
 
     stdout.execute(crossterm::terminal::Clear(
         crossterm::terminal::ClearType::All,
@@ -80,12 +80,17 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 match c {
                     's' => stop_clock_tx.try_send(()).unwrap(),
                     'c' => resume_clock_tx.send(()).unwrap(),
-                    'r' => time = Time::build(0, 0, 0),
+                    'r' => time = Time::build(0, 1, 0),
                     'q' => std::process::exit(0),
                     _ => {}
                 }
             }
-            PomodoroCommand::ClockIncrement => time.increment_second().unwrap(),
+            PomodoroCommand::ClockTick => {
+                match time.decrement_second() {
+                    Ok(_) => {}
+                    Err(_) => stop_clock_tx.try_send(()).unwrap()
+                }
+            },
         }
     }
 }
