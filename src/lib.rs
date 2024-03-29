@@ -19,8 +19,8 @@ async fn clock_loop(
 ) {
     loop {
         loop {
-            let mut sleep_future = task::sleep(Duration::from_secs(1)).fuse();
-            let mut stop_future = clock_stop_rx.recv().fuse();
+            let sleep_future = task::sleep(Duration::from_secs(1)).fuse();
+            let stop_future = clock_stop_rx.recv().fuse();
 
             futures::pin_mut!(sleep_future, stop_future);
 

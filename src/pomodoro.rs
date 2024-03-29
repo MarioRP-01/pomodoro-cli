@@ -103,9 +103,9 @@ mod test {
 
     #[test]
     fn displays() {
-        let mut time_zero: Time = Time::build(0, 0, 0);
-        let mut time_minute: Time = Time::build(0, 59, 59);
-        let mut time_hour: Time = Time::build(23, 59, 59);
+        let time_zero: Time = Time::build(0, 0, 0);
+        let time_minute: Time = Time::build(0, 59, 59);
+        let time_hour: Time = Time::build(23, 59, 59);
 
         assert_eq!(time_zero.to_string(), "00:00:00");
         assert_eq!(time_minute.to_string(), "00:59:59");
