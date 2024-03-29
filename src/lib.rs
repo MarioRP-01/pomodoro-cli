@@ -53,7 +53,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (stop_clock_tx, stop_clock_rx) = async_std::channel::bounded(1);
     let (resume_clock_tx, resume_clock_rx) = std::sync::mpsc::channel();
 
-    let mut time = Time::new();
+    let mut time = Time::build(0, 0, 0);
 
     stdout.execute(crossterm::terminal::Clear(
         crossterm::terminal::ClearType::All,
@@ -80,12 +80,12 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 match c {
                     's' => stop_clock_tx.try_send(()).unwrap(),
                     'c' => resume_clock_tx.send(()).unwrap(),
-                    'r' => time = Time::new(),
+                    'r' => time = Time::build(0, 0, 0),
                     'q' => std::process::exit(0),
                     _ => {}
                 }
             }
-            PomodoroCommand::ClockIncrement => time.increment_second(),
+            PomodoroCommand::ClockIncrement => time.increment_second().unwrap(),
         }
     }
 }
