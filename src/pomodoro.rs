@@ -5,7 +5,7 @@ const MAX_TIME: Duration = Duration::from_secs(24 * 3600 - 1);
 
 #[derive(Debug)]
 pub(crate) struct Time {
-    duration: Duration
+    duration: Duration,
 }
 
 impl Time {
@@ -13,17 +13,19 @@ impl Time {
         if hours > 23 || minutes > 59 || seconds > 59 {
             panic!("Invalid time")
         }
-        Time { duration: Duration::from_secs(seconds + minutes * 60 + hours * 3600) }
+        Time {
+            duration: Duration::from_secs(seconds + minutes * 60 + hours * 3600),
+        }
     }
 
     pub(crate) fn increment_second(&mut self) -> Result<(), ()> {
         let duration = match self.duration.checked_add(Duration::new(1, 0)) {
             Some(new_duration) => new_duration,
-            None => panic!("Duration cannot be negative")
+            None => panic!("Duration cannot be negative"),
         };
 
         if duration > MAX_TIME {
-            return Err(())
+            return Err(());
         }
 
         self.duration = duration;
@@ -32,8 +34,11 @@ impl Time {
 
     pub(crate) fn decrement_second(&mut self) -> Result<(), ()> {
         match self.duration.checked_sub(Duration::new(1, 0)) {
-            Some(new_duration) => { self.duration = new_duration; Ok(()) },
-            None => Err(())
+            Some(new_duration) => {
+                self.duration = new_duration;
+                Ok(())
+            }
+            None => Err(()),
         }
     }
 }
@@ -44,11 +49,7 @@ impl fmt::Display for Time {
         let hours = total_seconds / 3600;
         let minutes = (total_seconds % 3600) / 60;
         let seconds = total_seconds % 60;
-        write!(
-            f,
-            "{:02}:{:02}:{:02}",
-            hours, minutes, seconds
-        )
+        write!(f, "{:02}:{:02}:{:02}", hours, minutes, seconds)
     }
 }
 

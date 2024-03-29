@@ -2,15 +2,15 @@ use std::io::Write;
 use std::time::Duration;
 
 use async_std::task;
-use crossterm::{event, ExecutableCommand, QueueableCommand};
 use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::{event, ExecutableCommand, QueueableCommand};
 use futures::FutureExt;
 
 use command::PomodoroCommand;
 use pomodoro::Time;
 
-mod pomodoro;
 mod command;
+mod pomodoro;
 
 async fn clock_loop(
     command_tx: std::sync::mpsc::Sender<PomodoroCommand>,
@@ -36,7 +36,10 @@ async fn clock_loop(
 async fn handle_input(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
     loop {
         match event::read() {
-            Ok(Event::Key(KeyEvent { code: KeyCode::Char(c), .. })) => {
+            Ok(Event::Key(KeyEvent {
+                code: KeyCode::Char(c),
+                ..
+            })) => {
                 tx.send(PomodoroCommand::KeyboardInput(c)).unwrap();
             }
             _ => {}
@@ -59,7 +62,11 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         crossterm::terminal::ClearType::All,
     ))?;
 
-    task::spawn(clock_loop(command_tx.clone(), stop_clock_rx, resume_clock_rx));
+    task::spawn(clock_loop(
+        command_tx.clone(),
+        stop_clock_rx,
+        resume_clock_rx,
+    ));
     task::spawn(handle_input(command_tx));
 
     loop {
@@ -76,20 +83,16 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             .queue(crossterm::style::Print("\u{2192} (q) quit"))?
             .flush()?;
         match command_rx.recv().unwrap() {
-            PomodoroCommand::KeyboardInput(c) => {
-                match c {
-                    's' => stop_clock_tx.try_send(()).unwrap(),
-                    'c' => resume_clock_tx.send(()).unwrap(),
-                    'r' => time = Time::build(0, 1, 0),
-                    'q' => std::process::exit(0),
-                    _ => {}
-                }
-            }
-            PomodoroCommand::ClockTick => {
-                match time.decrement_second() {
-                    Ok(_) => {}
-                    Err(_) => stop_clock_tx.try_send(()).unwrap()
-                }
+            PomodoroCommand::KeyboardInput(c) => match c {
+                's' => stop_clock_tx.try_send(()).unwrap(),
+                'c' => resume_clock_tx.send(()).unwrap(),
+                'r' => time = Time::build(0, 1, 0),
+                'q' => std::process::exit(0),
+                _ => {}
+            },
+            PomodoroCommand::ClockTick => match time.decrement_second() {
+                Ok(_) => {}
+                Err(_) => stop_clock_tx.try_send(()).unwrap(),
             },
         }
     }
