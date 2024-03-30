@@ -1,8 +1,6 @@
 use std::fmt;
 use std::time::Duration;
 
-const MAX_TIME: Duration = Duration::from_secs(24 * 3600 - 1);
-
 #[derive(Debug)]
 pub(crate) struct Clock {
     duration: Duration,
@@ -16,20 +14,6 @@ impl Clock {
         Clock {
             duration: Duration::from_secs(seconds + minutes * 60 + hours * 3600),
         }
-    }
-
-    pub(crate) fn increment_second(&mut self) -> Result<(), ()> {
-        let duration = match self.duration.checked_add(Duration::new(1, 0)) {
-            Some(new_duration) => new_duration,
-            None => panic!("Duration cannot be negative"),
-        };
-
-        if duration > MAX_TIME {
-            return Err(());
-        }
-
-        self.duration = duration;
-        Ok(())
     }
 
     pub(crate) fn decrement_second(&mut self) -> Result<(), ()> {
@@ -94,28 +78,6 @@ impl Pomodoro {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn increments_non_max() {
-        let mut time_zero: Clock = Clock::build(0, 0, 0);
-        let mut time_almost_minute: Clock = Clock::build(0, 0, 59);
-        let mut time_almost_hour: Clock = Clock::build(0, 59, 59);
-
-        assert_eq!(time_zero.increment_second(), Ok(()));
-        assert_eq!(time_almost_minute.increment_second(), Ok(()));
-        assert_eq!(time_almost_hour.increment_second(), Ok(()));
-
-        assert_eq!(time_zero.duration.as_secs(), 1);
-        assert_eq!(time_almost_minute.duration.as_secs(), 60);
-        assert_eq!(time_almost_hour.duration.as_secs(), 3600);
-    }
-
-    #[test]
-    fn increments_max() {
-        let mut time_max: Clock = Clock::build(23, 59, 59);
-        assert_eq!(time_max.increment_second(), Err(()));
-        assert_eq!(time_max.duration.as_secs(), MAX_TIME.as_secs());
-    }
 
     #[test]
     fn decreases_non_zero() {
