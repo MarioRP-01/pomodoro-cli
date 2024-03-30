@@ -1,4 +1,6 @@
-use std::io::Write;
+use crate::prelude::*;
+
+use std::io::{Stdout, Write};
 use std::time::Duration;
 
 use async_std::task;
@@ -11,6 +13,8 @@ use command::PomodoroCommand;
 
 mod command;
 mod pomodoro;
+mod error;
+pub mod prelude;
 
 async fn clock_tick_loop(
     command_tx: std::sync::mpsc::Sender<PomodoroCommand>,
@@ -47,20 +51,26 @@ async fn handle_input(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
     }
 }
 
-pub fn run() -> Result<(), Box<dyn std::error::Error>> {
+fn init(mut stdout: &Stdout) -> Result<()> {
+    stdout.execute(crossterm::cursor::Hide)?;
+
+    stdout.execute(crossterm::terminal::Clear(
+        crossterm::terminal::ClearType::All,
+    ))?;
+
+    Ok(())
+}
+
+pub fn run() -> Result<()> {
     let mut stdout = std::io::stdout();
 
-    stdout.execute(crossterm::cursor::Hide)?;
+    init(&stdout)?;
 
     let (command_tx, command_rx) = std::sync::mpsc::channel();
     let (stop_clock_tx, stop_clock_rx) = async_std::channel::bounded(1);
     let (resume_clock_tx, resume_clock_rx) = std::sync::mpsc::channel();
 
     let mut pomodoro = pomodoro::Pomodoro::new(stop_clock_tx, resume_clock_tx);
-
-    stdout.execute(crossterm::terminal::Clear(
-        crossterm::terminal::ClearType::All,
-    ))?;
 
     task::spawn(clock_tick_loop(
         command_tx.clone(),
