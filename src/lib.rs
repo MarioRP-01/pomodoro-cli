@@ -7,7 +7,7 @@ use crossterm::{event, ExecutableCommand, QueueableCommand};
 use futures::FutureExt;
 
 use command::PomodoroCommand;
-use pomodoro::Clock;
+
 
 mod command;
 mod pomodoro;
