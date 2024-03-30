@@ -53,6 +53,44 @@ impl fmt::Display for Clock {
     }
 }
 
+pub struct Pomodoro {
+    pub clock: Clock,
+    stop_clock_tx: async_std::channel::Sender<()>,
+    resume_clock_tx: std::sync::mpsc::Sender<()>
+}
+
+impl Pomodoro {
+    pub fn new(
+        stop_clock_tx: async_std::channel::Sender<()>,
+        resume_clock_tx: std::sync::mpsc::Sender<()>
+    ) -> Pomodoro {
+        Pomodoro {
+            clock: Clock::build(0, 1, 0),
+            stop_clock_tx,
+            resume_clock_tx
+        }
+    }
+
+    pub fn stop(&self) {
+        self.stop_clock_tx.try_send(()).unwrap();
+    }
+
+    pub fn resume(&self) {
+        self.resume_clock_tx.send(()).unwrap();
+    }
+
+    pub fn reset(&mut self) {
+        self.clock = Clock::build(0, 1, 0);
+    }
+
+    pub fn tick(&mut self) {
+        match self.clock.decrement_second() {
+            Ok(_) => {}
+            Err(_) => self.stop(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

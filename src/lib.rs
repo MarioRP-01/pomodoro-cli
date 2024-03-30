@@ -56,7 +56,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (stop_clock_tx, stop_clock_rx) = async_std::channel::bounded(1);
     let (resume_clock_tx, resume_clock_rx) = std::sync::mpsc::channel();
 
-    let mut clock = Clock::build(0, 1, 0);
+    let mut pomodoro = pomodoro::Pomodoro::new(stop_clock_tx, resume_clock_tx);
 
     stdout.execute(crossterm::terminal::Clear(
         crossterm::terminal::ClearType::All,
@@ -72,7 +72,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         stdout
             .queue(crossterm::cursor::MoveTo(2, 0))?
-            .queue(crossterm::style::Print(&clock))?
+            .queue(crossterm::style::Print(&pomodoro.clock))?
             .queue(crossterm::cursor::MoveTo(0, 2))?
             .queue(crossterm::style::Print("\u{2192} (s) stop"))?
             .queue(crossterm::cursor::MoveTo(0, 3))?
@@ -84,16 +84,13 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             .flush()?;
         match command_rx.recv().unwrap() {
             PomodoroCommand::KeyboardInput(c) => match c {
-                's' => stop_clock_tx.try_send(()).unwrap(),
-                'c' => resume_clock_tx.send(()).unwrap(),
-                'r' => clock = Clock::build(0, 1, 0),
+                's' => pomodoro.stop(),
+                'c' => pomodoro.resume(),
+                'r' => pomodoro.reset(),
                 'q' => std::process::exit(0),
                 _ => {}
             },
-            PomodoroCommand::ClockTick => match clock.decrement_second() {
-                Ok(_) => {}
-                Err(_) => stop_clock_tx.try_send(()).unwrap(),
-            },
+            PomodoroCommand::ClockTick => pomodoro.tick(),
         }
     }
 }
