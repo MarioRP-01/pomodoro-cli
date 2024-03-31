@@ -1,4 +1,4 @@
-pub(crate) enum PomodoroCommand {
+pub(crate) enum TermAction {
     ClockTick,
     KeyboardInput(char),
 }

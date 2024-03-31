@@ -1,15 +1,15 @@
-use crate::prelude::*;
-
 use std::io::{Stdout, Write};
 use std::time::Duration;
 
 use async_std::task;
+use crossterm::{Command, cursor, event, ExecutableCommand, QueueableCommand};
 use crossterm::event::{Event, KeyCode, KeyEvent};
-use crossterm::{event, ExecutableCommand, QueueableCommand};
+use crossterm::style::Print;
 use futures::FutureExt;
 
-use command::PomodoroCommand;
+use command::TermAction;
 
+use crate::prelude::*;
 
 mod command;
 mod pomodoro;
@@ -17,7 +17,7 @@ mod error;
 pub mod prelude;
 
 async fn clock_tick_loop(
-    command_tx: std::sync::mpsc::Sender<PomodoroCommand>,
+    command_tx: std::sync::mpsc::Sender<TermAction>,
     clock_stop_rx: async_std::channel::Receiver<()>,
     clock_resume_rx: std::sync::mpsc::Receiver<()>,
 ) {
@@ -29,7 +29,7 @@ async fn clock_tick_loop(
             futures::pin_mut!(sleep_future, stop_future);
 
             futures::select! {
-            _ = sleep_future => command_tx.send(PomodoroCommand::ClockTick).unwrap(),
+            _ = sleep_future => command_tx.send(TermAction::ClockTick).unwrap(),
             _ = stop_future => break,
             }
         }
@@ -37,14 +37,14 @@ async fn clock_tick_loop(
     }
 }
 
-async fn handle_input(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
+async fn handle_input(tx: std::sync::mpsc::Sender<TermAction>) {
     loop {
         match event::read() {
             Ok(Event::Key(KeyEvent {
                 code: KeyCode::Char(c),
                 ..
             })) => {
-                tx.send(PomodoroCommand::KeyboardInput(c)).unwrap();
+                tx.send(TermAction::KeyboardInput(c)).unwrap();
             }
             _ => {}
         }
@@ -52,7 +52,7 @@ async fn handle_input(tx: std::sync::mpsc::Sender<PomodoroCommand>) {
 }
 
 fn init(mut stdout: &Stdout) -> Result<()> {
-    stdout.execute(crossterm::cursor::Hide)?;
+    stdout.execute(cursor::Hide)?;
 
     stdout.execute(crossterm::terminal::Clear(
         crossterm::terminal::ClearType::All,
@@ -81,26 +81,26 @@ pub fn run() -> Result<()> {
 
     loop {
         stdout
-            .queue(crossterm::cursor::MoveTo(2, 0))?
-            .queue(crossterm::style::Print(&pomodoro.clock))?
-            .queue(crossterm::cursor::MoveTo(0, 2))?
-            .queue(crossterm::style::Print("\u{2192} (s) stop"))?
-            .queue(crossterm::cursor::MoveTo(0, 3))?
-            .queue(crossterm::style::Print("\u{2192} (c) continue"))?
-            .queue(crossterm::cursor::MoveTo(0, 4))?
-            .queue(crossterm::style::Print("\u{2192} (r) reset"))?
-            .queue(crossterm::cursor::MoveTo(0, 5))?
-            .queue(crossterm::style::Print("\u{2192} (q) quit"))?
+            .queue(cursor::MoveTo(2, 0))?
+            .queue(Print(&pomodoro.clock))?
+            .queue(cursor::MoveTo(0, 2))?
+            .queue(Print("\u{2192} (s) stop"))?
+            .queue(cursor::MoveTo(0, 3))?
+            .queue(Print("\u{2192} (c) continue"))?
+            .queue(cursor::MoveTo(0, 4))?
+            .queue(Print("\u{2192} (r) reset"))?
+            .queue(cursor::MoveTo(0, 5))?
+            .queue(Print("\u{2192} (q) quit"))?
             .flush()?;
         match command_rx.recv().unwrap() {
-            PomodoroCommand::KeyboardInput(c) => match c {
+            TermAction::KeyboardInput(c) => match c {
                 's' => pomodoro.stop(),
                 'c' => pomodoro.resume(),
                 'r' => pomodoro.reset(),
                 'q' => std::process::exit(0),
                 _ => {}
             },
-            PomodoroCommand::ClockTick => pomodoro.tick(),
+            TermAction::ClockTick => pomodoro.tick(),
         }
     }
 }
