@@ -1,5 +1,6 @@
 use std::fmt;
 use std::time::Duration;
+use crossterm::style::Print;
 
 #[derive(Debug)]
 pub(crate) struct Clock {
@@ -55,16 +56,32 @@ impl Pomodoro {
         }
     }
 
+    pub fn display_time(&self) -> String {
+        self.clock.to_string()
+    }
+
     pub fn stop(&self) {
         self.stop_clock_tx.try_send(()).unwrap();
+    }
+
+    pub fn stop_command(&self) -> impl crossterm::Command {
+        Print("\u{2192} (s) stop")
     }
 
     pub fn resume(&self) {
         self.resume_clock_tx.send(()).unwrap();
     }
 
+    pub fn resume_command(&self) -> impl crossterm::Command {
+        Print("\u{2192} (c) continue")
+    }
+
     pub fn reset(&mut self) {
         self.clock = Clock::build(0, 1, 0);
+    }
+
+    pub fn reset_command(&self) -> impl crossterm::Command {
+        Print("\u{2192} (r) reset")
     }
 
     pub fn tick(&mut self) {
@@ -73,6 +90,10 @@ impl Pomodoro {
             Err(_) => self.stop(),
         }
     }
+}
+
+struct PomodoroMenu {
+
 }
 
 #[cfg(test)]

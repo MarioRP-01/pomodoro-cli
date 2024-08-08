@@ -84,11 +84,11 @@ pub fn run() -> Result<()> {
             .queue(cursor::MoveTo(2, 0))?
             .queue(Print(&pomodoro.clock))?
             .queue(cursor::MoveTo(0, 2))?
-            .queue(Print("\u{2192} (s) stop"))?
+            .queue(pomodoro.stop_command())?
             .queue(cursor::MoveTo(0, 3))?
-            .queue(Print("\u{2192} (c) continue"))?
+            .queue(pomodoro.resume_command())?
             .queue(cursor::MoveTo(0, 4))?
-            .queue(Print("\u{2192} (r) reset"))?
+            .queue(pomodoro.reset_command())?
             .queue(cursor::MoveTo(0, 5))?
             .queue(Print("\u{2192} (q) quit"))?
             .flush()?;
