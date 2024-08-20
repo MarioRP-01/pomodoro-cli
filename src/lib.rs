@@ -2,10 +2,10 @@ use std::io::{Stdout, Write};
 use std::time::Duration;
 
 use async_std::task;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use crossterm::{cursor, event, ExecutableCommand, QueueableCommand};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::style::Print;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::{cursor, event, ExecutableCommand, QueueableCommand};
 use futures::FutureExt;
 
 use command::TermAction;
@@ -13,8 +13,8 @@ use command::TermAction;
 use crate::prelude::*;
 
 mod command;
-mod pomodoro;
 mod error;
+mod pomodoro;
 pub mod prelude;
 
 async fn clock_tick_loop(
@@ -40,14 +40,12 @@ async fn clock_tick_loop(
 
 async fn handle_input(tx: std::sync::mpsc::Sender<TermAction>) {
     loop {
-        match event::read() {
-            Ok(Event::Key(KeyEvent {
-                code: KeyCode::Char(c),
-                ..
-            })) => {
-                tx.send(TermAction::KeyboardInput(c)).unwrap();
-            }
-            _ => {}
+        if let Ok(Event::Key(KeyEvent {
+            code: KeyCode::Char(c),
+            ..
+        })) = event::read()
+        {
+            tx.send(TermAction::KeyboardInput(c)).unwrap();
         }
     }
 }
@@ -62,7 +60,6 @@ fn init(mut stdout: &Stdout) -> Result<()> {
 }
 
 pub fn run() -> Result<()> {
-
     enable_raw_mode().unwrap();
 
     let mut stdout = std::io::stdout();
@@ -108,9 +105,9 @@ pub fn run() -> Result<()> {
         }
     };
 
-    stdout.
-        queue(cursor::MoveTo(0, 0))?.
-        queue(crossterm::terminal::Clear(
+    stdout
+        .queue(cursor::MoveTo(0, 0))?
+        .queue(crossterm::terminal::Clear(
             crossterm::terminal::ClearType::All,
         ))?
         .flush()?;

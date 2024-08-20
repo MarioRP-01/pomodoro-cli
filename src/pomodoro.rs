@@ -1,6 +1,6 @@
+use crossterm::style::Print;
 use std::fmt;
 use std::time::Duration;
-use crossterm::style::Print;
 
 #[derive(Debug)]
 pub(crate) struct Clock {
@@ -41,18 +41,18 @@ impl fmt::Display for Clock {
 pub struct Pomodoro {
     pub clock: Clock,
     stop_clock_tx: async_std::channel::Sender<()>,
-    resume_clock_tx: std::sync::mpsc::Sender<()>
+    resume_clock_tx: std::sync::mpsc::Sender<()>,
 }
 
 impl Pomodoro {
     pub fn new(
         stop_clock_tx: async_std::channel::Sender<()>,
-        resume_clock_tx: std::sync::mpsc::Sender<()>
+        resume_clock_tx: std::sync::mpsc::Sender<()>,
     ) -> Pomodoro {
         Pomodoro {
             clock: Clock::build(0, 1, 0),
             stop_clock_tx,
-            resume_clock_tx
+            resume_clock_tx,
         }
     }
 
