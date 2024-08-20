@@ -56,10 +56,6 @@ impl Pomodoro {
         }
     }
 
-    pub fn display_time(&self) -> String {
-        self.clock.to_string()
-    }
-
     pub fn stop(&self) {
         self.stop_clock_tx.try_send(()).unwrap();
     }
@@ -84,16 +80,16 @@ impl Pomodoro {
         Print("\u{2192} (r) reset")
     }
 
+    pub fn quit_command(&self) -> impl crossterm::Command {
+        Print("\u{2192} (q) quit")
+    }
+
     pub fn tick(&mut self) {
         match self.clock.decrement_second() {
             Ok(_) => {}
             Err(_) => self.stop(),
         }
     }
-}
-
-struct PomodoroMenu {
-
 }
 
 #[cfg(test)]

@@ -2,7 +2,8 @@ use std::io::{Stdout, Write};
 use std::time::Duration;
 
 use async_std::task;
-use crossterm::{Command, cursor, event, ExecutableCommand, QueueableCommand};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::{cursor, event, ExecutableCommand, QueueableCommand};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::style::Print;
 use futures::FutureExt;
@@ -53,7 +54,6 @@ async fn handle_input(tx: std::sync::mpsc::Sender<TermAction>) {
 
 fn init(mut stdout: &Stdout) -> Result<()> {
     stdout.execute(cursor::Hide)?;
-
     stdout.execute(crossterm::terminal::Clear(
         crossterm::terminal::ClearType::All,
     ))?;
@@ -62,6 +62,9 @@ fn init(mut stdout: &Stdout) -> Result<()> {
 }
 
 pub fn run() -> Result<()> {
+
+    enable_raw_mode().unwrap();
+
     let mut stdout = std::io::stdout();
 
     init(&stdout)?;
@@ -79,7 +82,7 @@ pub fn run() -> Result<()> {
     ));
     task::spawn(handle_input(command_tx));
 
-    loop {
+    let result = 'outer: loop {
         stdout
             .queue(cursor::MoveTo(2, 0))?
             .queue(Print(&pomodoro.clock))?
@@ -90,17 +93,29 @@ pub fn run() -> Result<()> {
             .queue(cursor::MoveTo(0, 4))?
             .queue(pomodoro.reset_command())?
             .queue(cursor::MoveTo(0, 5))?
-            .queue(Print("\u{2192} (q) quit"))?
+            .queue(pomodoro.quit_command())?
+            .queue(cursor::MoveTo(0, 6))?
             .flush()?;
         match command_rx.recv().unwrap() {
             TermAction::KeyboardInput(c) => match c {
                 's' => pomodoro.stop(),
                 'c' => pomodoro.resume(),
                 'r' => pomodoro.reset(),
-                'q' => std::process::exit(0),
+                'q' => break 'outer Ok(()),
                 _ => {}
             },
             TermAction::ClockTick => pomodoro.tick(),
         }
-    }
+    };
+
+    stdout.
+        queue(cursor::MoveTo(0, 0))?.
+        queue(crossterm::terminal::Clear(
+            crossterm::terminal::ClearType::All,
+        ))?
+        .flush()?;
+
+    disable_raw_mode().unwrap();
+
+    result
 }
