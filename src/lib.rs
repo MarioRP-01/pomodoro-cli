@@ -1,6 +1,7 @@
 use std::io::{Stdout, Write};
 use std::time::Duration;
 
+use async_std::channel::TryRecvError;
 use async_std::task;
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::style::Print;
@@ -35,6 +36,10 @@ async fn clock_tick_loop(
             }
         }
         clock_resume_rx.recv().unwrap();
+        clock_stop_rx.try_recv().or_else(|e| match e {
+            TryRecvError::Empty => Ok(()),
+            TryRecvError::Closed => Err(Error::Generic("clock_stop_rx closed".to_string()))
+        }).unwrap();
     }
 }
 

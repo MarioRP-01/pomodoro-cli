@@ -1,6 +1,9 @@
+use async_std::channel::TrySendError;
 use crossterm::style::Print;
 use std::fmt;
 use std::time::Duration;
+
+use crate::Error;
 
 #[derive(Debug)]
 pub(crate) struct Clock {
@@ -57,7 +60,10 @@ impl Pomodoro {
     }
 
     pub fn stop(&self) {
-        self.stop_clock_tx.try_send(()).unwrap();
+        self.stop_clock_tx.try_send(()).or_else(|e| match e {
+            TrySendError::Full(_) => Ok(()),
+            TrySendError::Closed(_) => Err(Error::Generic("stop_close_tx closed".to_string()))
+        }).unwrap();
     }
 
     pub fn stop_command(&self) -> impl crossterm::Command {
