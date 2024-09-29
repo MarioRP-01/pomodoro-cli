@@ -1,9 +1,19 @@
 use async_std::channel::TrySendError;
+use crossterm::{cursor, QueueableCommand};
 use crossterm::style::Print;
-use std::fmt;
+use std::{fmt, io::Stdout};
+use std::sync::Arc;
 use std::time::Duration;
 
-use crate::Error;
+use crate::action::ResumeAction;
+use crate::command::TermAction;
+use crate::view::View;
+use crate::{action::{Action, StopAction}, Error, Result};
+
+
+fn is_valid_time(hours: u64, minutes: u64, seconds: u64) -> bool {
+    return hours > 23 || minutes > 59 || seconds > 59
+}
 
 #[derive(Debug)]
 pub(crate) struct Clock {
@@ -12,7 +22,7 @@ pub(crate) struct Clock {
 
 impl Clock {
     pub(crate) fn build(hours: u64, minutes: u64, seconds: u64) -> Clock {
-        if hours > 23 || minutes > 59 || seconds > 59 {
+        if is_valid_time(hours, minutes, seconds) {
             panic!("Invalid time")
         }
         Clock {
@@ -20,15 +30,25 @@ impl Clock {
         }
     }
 
-    pub(crate) fn decrement_second(&mut self) -> Result<(), ()> {
+    pub(crate) fn reset(&mut self, hours: u64, minutes: u64, seconds: u64) -> Result<()> {
+        if is_valid_time(hours, minutes, seconds) {
+            return Err(Error::Generic("Invalid time".to_string()))
+        }
+
+        self.duration = Duration::from_secs(seconds + minutes * 60 + hours * 3600);
+        Ok(())
+    }
+
+    pub(crate) fn decrement_second(&mut self) -> Result<()> {
         match self.duration.checked_sub(Duration::new(1, 0)) {
             Some(new_duration) => {
                 self.duration = new_duration;
                 Ok(())
             }
-            None => Err(()),
+            None => Err(Error::Generic("Invalid substraction in clock".to_string())),
         }
     }
+
 }
 
 impl fmt::Display for Clock {
@@ -41,10 +61,21 @@ impl fmt::Display for Clock {
     }
 }
 
+impl View for Clock {
+    fn display(&self, stdout: &mut Stdout) -> Result<()> {
+
+        stdout
+            .queue(Print(&self))?;
+
+        Ok(())
+    }
+}
+
 pub struct Pomodoro {
-    pub clock: Clock,
-    stop_clock_tx: async_std::channel::Sender<()>,
-    resume_clock_tx: std::sync::mpsc::Sender<()>,
+
+    clock: Clock,
+    actions: Arc<[Arc<dyn Action>]>,
+    stop_action: Arc<StopAction>,
 }
 
 impl Pomodoro {
@@ -52,49 +83,58 @@ impl Pomodoro {
         stop_clock_tx: async_std::channel::Sender<()>,
         resume_clock_tx: std::sync::mpsc::Sender<()>,
     ) -> Pomodoro {
+
+        let clock =  Clock::build(0, 1, 0);
+        let stop_action = Arc::new(StopAction::new(stop_clock_tx));
+        let resume_action = Arc::new(ResumeAction::new(resume_clock_tx));
+        let reset_action = Arc::new(ResetAction::new(clock));
+
         Pomodoro {
             clock: Clock::build(0, 1, 0),
-            stop_clock_tx,
-            resume_clock_tx,
+            actions: Arc::new([stop_action.clone(), resume_action]),
+            stop_action,
         }
-    }
-
-    pub fn stop(&self) {
-        self.stop_clock_tx.try_send(()).or_else(|e| match e {
-            TrySendError::Full(_) => Ok(()),
-            TrySendError::Closed(_) => Err(Error::Generic("stop_close_tx closed".to_string()))
-        }).unwrap();
-    }
-
-    pub fn stop_command(&self) -> impl crossterm::Command {
-        Print("\u{2192} (s) stop")
-    }
-
-    pub fn resume(&self) {
-        self.resume_clock_tx.send(()).unwrap();
-    }
-
-    pub fn resume_command(&self) -> impl crossterm::Command {
-        Print("\u{2192} (c) continue")
     }
 
     pub fn reset(&mut self) {
         self.clock = Clock::build(0, 1, 0);
     }
 
-    pub fn reset_command(&self) -> impl crossterm::Command {
-        Print("\u{2192} (r) reset")
-    }
-
-    pub fn quit_command(&self) -> impl crossterm::Command {
-        Print("\u{2192} (q) quit")
-    }
-
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> Result<()> {
         match self.clock.decrement_second() {
-            Ok(_) => {}
-            Err(_) => self.stop(),
+            Ok(_) => Ok(()),
+            Err(_) => self.stop_action.execute(),
         }
+    }
+    
+    pub(crate) fn execute(&mut self, term_action: crate::command::TermAction) -> Result<()> {
+        match term_action {
+            TermAction::KeyboardInput(c) => self.actions.iter().find(|a| a.get_shortcut() == c).ok_or(Error::Generic("Action not found".to_string()))?.execute(),
+            TermAction::ClockTick => self.tick(),
+        }
+    }
+}
+
+impl View for Pomodoro {
+    fn display(&self, stdout: &mut Stdout) -> Result<()>{
+
+
+        stdout
+            .queue(cursor::MoveTo(2, 0))?;
+
+        self.clock.display(stdout)?;
+
+        stdout
+            .queue(cursor::MoveTo(0, 0))?;
+
+        for action in self.actions.iter() {
+            stdout
+                .queue(cursor::MoveDown(1))?;
+
+            action.display(stdout)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -108,9 +148,9 @@ mod test {
         let mut time_minute: Clock = Clock::build(0, 1, 0);
         let mut time_hour: Clock = Clock::build(1, 0, 0);
 
-        assert_eq!(time_second.decrement_second(), Ok(()));
-        assert_eq!(time_minute.decrement_second(), Ok(()));
-        assert_eq!(time_hour.decrement_second(), Ok(()));
+        assert!(time_second.decrement_second().is_ok());
+        assert!(time_minute.decrement_second().is_ok());
+        assert!(time_hour.decrement_second().is_ok());
 
         assert_eq!(time_second.duration.as_secs(), 0);
         assert_eq!(time_minute.duration.as_secs(), 59);
@@ -120,7 +160,7 @@ mod test {
     #[test]
     fn decrease_zero_invalid() {
         let mut time_zero: Clock = Clock::build(0, 0, 0);
-        assert_eq!(time_zero.decrement_second(), Err(()));
+        assert!(time_zero.decrement_second().is_err());
         assert_eq!(time_zero.duration.as_secs(), 0);
     }
 

@@ -1,21 +1,25 @@
+use std::cell::RefCell;
 use std::io::{Stdout, Write};
+use std::rc::Rc;
 use std::time::Duration;
 
 use async_std::channel::TryRecvError;
 use async_std::task;
 use crossterm::event::{Event, KeyCode, KeyEvent};
-use crossterm::style::Print;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use crossterm::{cursor, event, ExecutableCommand, QueueableCommand};
 use futures::FutureExt;
 
 use command::TermAction;
+use view::View;
 
 use crate::prelude::*;
 
 mod command;
 mod error;
 mod pomodoro;
+mod view;
+mod action;
 pub mod prelude;
 
 async fn clock_tick_loop(
@@ -35,11 +39,17 @@ async fn clock_tick_loop(
             _ = stop_future => break,
             }
         }
-        clock_resume_rx.recv().unwrap();
-        clock_stop_rx.try_recv().or_else(|e| match e {
-            TryRecvError::Empty => Ok(()),
-            TryRecvError::Closed => Err(Error::Generic("clock_stop_rx closed".to_string()))
-        }).unwrap();
+        
+        match clock_resume_rx.recv() {
+            Ok(_) => (),
+            Err(_) => break, // Exit if clock_resume_rx is closed
+        }
+    
+        match clock_stop_rx.try_recv() {
+            Ok(_) => (),
+            Err(TryRecvError::Empty) => (),
+            Err(TryRecvError::Closed) => break, // Exit if clock_stop_rx is closed
+        }
     }
 }
 
@@ -50,26 +60,63 @@ async fn handle_input(tx: std::sync::mpsc::Sender<TermAction>) {
             ..
         })) = event::read()
         {
-            tx.send(TermAction::KeyboardInput(c)).unwrap();
+            match tx.send(TermAction::KeyboardInput(c)) {
+                Ok(_) => (),
+                Err(_) => break,
+            }
         }
     }
 }
 
-fn init(mut stdout: &Stdout) -> Result<()> {
-    stdout.execute(cursor::Hide)?;
-    stdout.execute(crossterm::terminal::Clear(
-        crossterm::terminal::ClearType::All,
-    ))?;
+struct Application {
+    stdout: Rc<RefCell<Stdout>>
+}
 
-    Ok(())
+impl Application {
+    fn build(stdout: Rc<RefCell<Stdout>>) -> Result<Self> {
+        enable_raw_mode().unwrap();
+        {
+            let stdout_borrowed = &mut stdout.borrow_mut();
+
+            stdout_borrowed.execute(cursor::Hide)?;
+            stdout_borrowed.execute(crossterm::terminal::Clear(
+                crossterm::terminal::ClearType::All,
+            ))?;
+        }
+        Ok( 
+            Application {
+                stdout
+            }
+        )
+    }
+}
+
+impl Drop for Application {
+    fn drop(&mut self) {
+        
+        if let Ok(mut stdout) = self.stdout.try_borrow_mut() {
+            let _ = stdout
+                .queue(cursor::MoveTo(0, 0))
+                .and_then(|stdout| stdout.queue(crossterm::terminal::Clear(crossterm::terminal::ClearType::All)))
+                .and_then(|stdout| stdout.flush());
+        }
+
+        if let Err(e) = disable_raw_mode() {
+            eprintln!("Failed to disable raw mode: {}", e);
+        }
+    }
 }
 
 pub fn run() -> Result<()> {
-    enable_raw_mode().unwrap();
 
-    let mut stdout = std::io::stdout();
+    // let out = Rc::new(RefCell::new(std::io::stdout()));
 
-    init(&stdout)?;
+    // init(&out)?;
+    let out = Rc::new(RefCell::new(std::io::stdout()));
+
+    let _application = Application::build(out.clone())?;
+
+    // init(&mut out.borrow_mut())?;
 
     let (command_tx, command_rx) = std::sync::mpsc::channel();
     let (stop_clock_tx, stop_clock_rx) = async_std::channel::bounded(1);
@@ -84,40 +131,10 @@ pub fn run() -> Result<()> {
     ));
     task::spawn(handle_input(command_tx));
 
-    let result = 'outer: loop {
-        stdout
-            .queue(cursor::MoveTo(2, 0))?
-            .queue(Print(&pomodoro.clock))?
-            .queue(cursor::MoveTo(0, 2))?
-            .queue(pomodoro.stop_command())?
-            .queue(cursor::MoveTo(0, 3))?
-            .queue(pomodoro.resume_command())?
-            .queue(cursor::MoveTo(0, 4))?
-            .queue(pomodoro.reset_command())?
-            .queue(cursor::MoveTo(0, 5))?
-            .queue(pomodoro.quit_command())?
-            .queue(cursor::MoveTo(0, 6))?
-            .flush()?;
-        match command_rx.recv().unwrap() {
-            TermAction::KeyboardInput(c) => match c {
-                's' => pomodoro.stop(),
-                'c' => pomodoro.resume(),
-                'r' => pomodoro.reset(),
-                'q' => break 'outer Ok(()),
-                _ => {}
-            },
-            TermAction::ClockTick => pomodoro.tick(),
-        }
+    loop {
+        pomodoro.display(&mut out.borrow_mut())?;
+        out.borrow_mut().flush()?;
+
+        let _ = pomodoro.execute(command_rx.recv().unwrap());
     };
-
-    stdout
-        .queue(cursor::MoveTo(0, 0))?
-        .queue(crossterm::terminal::Clear(
-            crossterm::terminal::ClearType::All,
-        ))?
-        .flush()?;
-
-    disable_raw_mode().unwrap();
-
-    result
 }
